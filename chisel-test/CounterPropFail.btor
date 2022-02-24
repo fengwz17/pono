@@ -1,0 +1,67 @@
+1 sort bitvec 1
+2 input 1 reset
+3 input 1 io_en
+4 state 1 _cycles
+5 sort bitvec 2
+6 state 5 countReg ; @[Counter.scala 11:25]
+7 state 1 out ; @[past.scala 47:23]
+8 state 5 out_1 ; @[past.scala 47:23]
+; _resetCount.init
+9 zero 1
+10 state 1 _resetCount
+11 init 1 10 9
+12 one 1
+13 ugte 1 4 12
+14 not 1 13
+15 not 1 14
+16 sort bitvec 3
+17 uext 16 6 1
+18 one 1
+19 uext 16 18 2
+20 add 16 17 19 ; @[Counter.scala 14:26]
+21 slice 5 20 1 0 ; @[Counter.scala 14:26]
+22 ite 5 3 21 6 ; @[Counter.scala 13:15 14:14 11:25]
+23 uext 16 6 1
+24 const 5 10
+25 uext 16 24 1
+26 add 16 23 25 ; @[CounterFormal.scala 8:40]
+27 eq 1 6 8 ; @[CounterFormal.scala 8:21]
+28 not 1 2 ; @[CounterFormal.scala 8:11]
+29 not 1 27 ; @[CounterFormal.scala 8:11]
+30 one 1
+31 ugte 1 10 30
+32 not 1 31 ; @[Counter.scala 17:11]
+33 and 1 7 28
+34 and 1 33 15
+35 implies 1 34 27
+36 not 1 35
+37 bad 36 ; assert @[CounterFormal.scala 8:11]
+38 implies 1 32 2
+39 constraint 38 ; _resetActive
+; _cycles.next
+40 zero 1
+41 uext 5 4 1
+42 one 1
+43 uext 5 42 1
+44 add 5 41 43
+45 slice 1 44 0 0
+46 ite 1 14 45 4
+47 ite 1 2 40 46
+48 next 1 4 47
+; countReg.next
+49 zero 5
+50 ite 5 2 49 22
+51 next 5 6 50
+; out.next
+52 next 1 7 3
+; out_1.next
+53 slice 5 26 1 0
+54 next 5 8 53
+; _resetCount.next
+55 uext 5 10 1
+56 one 1
+57 uext 5 56 1
+58 add 5 55 57
+59 slice 1 58 0 0
+60 ite 1 32 59 10
+61 next 1 10 60
