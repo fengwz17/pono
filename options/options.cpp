@@ -431,6 +431,7 @@ const std::unordered_set<Engine> ic3_variants_set({ IC3_BOOL,
                                                     IC3IA_ENGINE,
                                                     MSAT_IC3IA,
                                                     IC3SA_ENGINE,
+                                                    IC3BackUa_ENGINE,
                                                     SYGUS_PDR });
 
 const std::unordered_set<Engine> & ic3_variants() { return ic3_variants_set; }
@@ -664,6 +665,10 @@ string to_string(Engine e)
     }
     case IC3SA_ENGINE: {
       res = "ic3sa";
+      break;
+    }
+    case IC3BackUa_ENGINE: {
+      res = "ic3back_ua";
       break;
     }
     case SYGUS_PDR: {

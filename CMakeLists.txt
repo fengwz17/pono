@@ -151,6 +151,7 @@ set(SOURCES
   "${PROJECT_SOURCE_DIR}/engines/ic3bits.cpp"
   "${PROJECT_SOURCE_DIR}/engines/ic3ia.cpp"
   "${PROJECT_SOURCE_DIR}/engines/ic3sa.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/ic3back_ua.cpp"
   "${PROJECT_SOURCE_DIR}/engines/interpolantmc.cpp"
   "${PROJECT_SOURCE_DIR}/engines/kinduction.cpp"
   "${PROJECT_SOURCE_DIR}/engines/mbic3.cpp"
