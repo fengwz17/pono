@@ -667,12 +667,12 @@ string to_string(Engine e)
       res = "ic3sa";
       break;
     }
-    case IC3BackUa_ENGINE: {
-      res = "ic3back_ua";
-      break;
-    }
     case SYGUS_PDR: {
       res = "sygus-pdr";
+      break;
+    }
+    case IC3BackUa_ENGINE: {
+      res = "ic3back_ua";
       break;
     }
     default: {

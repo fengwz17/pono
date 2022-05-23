@@ -20,6 +20,7 @@
 #include "engines/prover.h"
 #include "smt-switch/utils.h"
 #include "engines/ic3.h"
+#include "engines/ic3bits.h"
 
 namespace pono {
 
@@ -60,7 +61,7 @@ class IC3BackUa : public IC3
      *   else if isSAT(not B[k] /\ T /\ t'), add \bar{s} to B[k+1]
      *   else if \bar{t} can reach B[0], add \bar{t} to B[k-1], B[k], B[k+1]
      */
-    bool check(size_t k, const IC3Formula & t, IC3Formula & out);
+    bool check(size_t k, const IC3Formula & t);
 
     // /** isSAT(s /\ T /\ t')
     //  *  @param 
@@ -78,6 +79,8 @@ class IC3BackUa : public IC3
     smt::Term get_frame_term(size_t i) const;
 
     IC3Formula generate(IC3Formula & s);
+
+    void reset_solver();
 
 };
  

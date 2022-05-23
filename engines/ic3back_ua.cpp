@@ -75,6 +75,23 @@ void IC3BackUa::initialize()
     // Backward: we record init state as "init_label_", but "init_label_" is not B[0]
     init_label_ = solver_->make_symbol("__init_label", boolsort_);
     solver_->assert_formula(solver_->make_term(Implies, init_label_, ts_.init()));
+
+    // // bits
+    // Term bv1 = solver_->make_term(1, solver_->make_sort(BV, 1));
+
+    // assert(!state_bits_.size());
+    // for (const auto & sv : ts_.statevars()) {
+    //     const Sort & sort = sv->get_sort();
+    //     if (sort == boolsort_) {
+    //     state_bits_.push_back(sv);
+    //     } else {
+    //     assert(sort->get_sort_kind() == BV);
+    //     for (size_t i = 0; i < sort->get_width(); ++i) {
+    //         state_bits_.push_back(solver_->make_term(
+    //             Equal, solver_->make_term(Op(Extract, i, i), sv), bv1));
+    //     }
+    //     }
+    // }
 }
 
 ProverResult IC3BackUa::check_until(int k)
@@ -96,6 +113,10 @@ ProverResult IC3BackUa::check_until(int k)
         else {
             ++i;
         }
+
+        if (res != ProverResult::UNKNOWN) {
+            return res;
+        }
     }
 
     return ProverResult::UNKNOWN;
@@ -103,19 +124,23 @@ ProverResult IC3BackUa::check_until(int k)
 
 ProverResult IC3BackUa::back_step(int i)
 {
-    if (i <= reached_k_)
-    {
-        return ProverResult::UNKNOWN;
-    }
+    // if (i <= reached_k_)
+    // {
+    //     return ProverResult::UNKNOWN;
+    // }
 
     // isSAT(I /\ B[0]) or isSAT(I /\ T /\ B[0]')
     if (reached_k_ < 1)
     {
-        if (!base_check());
+        if (!base_check())
         {
+            logger.log(1, "Return UNSAFE in base_check");
             return ProverResult::FALSE;
         }
     }
+
+    std::cout << "reached_k_" << reached_k_ << std::endl;
+    
 
     // reached_k_ is the number of transitions that have been checked,
     //  currently, there are reached_k_ + 1 frames in total 
@@ -125,19 +150,17 @@ ProverResult IC3BackUa::back_step(int i)
     // TODO: unsat core and optimaizations
     logger.log(1, "Check init-reachable phase at frame {}", i);
 
+    push_frame();
+
     const vector<IC3Formula> & Fi = frames_.at(i);
-    IC3Formula out = get_model_ic3formula();
 
     for (size_t j = 0; j < Fi.size(); ++j) 
     {
-        if (!check(i, Fi[j], out)) {
+        std::cout << "Fi[" << j << "]: " << Fi[j].term << std::endl;
+        if (!check(i, Fi[j])) {
             // counter-example
             // TODO: construct the counterexample.
             return ProverResult::FALSE;
-        }
-        else {
-            // add out to Bi+1
-            constrain_frame(i + 1, out, false);
         }
     }
 
@@ -151,7 +174,7 @@ ProverResult IC3BackUa::back_step(int i)
     }
 
     // TODO: rewrite reset_solver()
-    reset_solver();
+    // reset_solver();
 
     ++reached_k_;
 
@@ -177,7 +200,7 @@ bool IC3BackUa::base_check()
             // trace is only one bad state that intersects with initial
             cex_.clear();
             cex_.push_back(bad_);
-            return FALSE;
+            return false;
         } else {
             assert(r.is_unsat());
             reached_k_ = 0;  // keep reached_k_ aligned with number of frames
@@ -190,9 +213,10 @@ bool IC3BackUa::base_check()
     logger.log(1, "Checking if inital states can violate property in one-step");
 
     push_solver_context();
-    solver_->assert_formula(init_label_);
-    solver_->assert_formula(trans_label_);
+    solver_->assert_formula(ts_.init());
+    solver_->assert_formula(ts_.trans());
     solver_->assert_formula(ts_.next(bad_));
+    
     Result r = check_sat();
     if (r.is_sat()) {
         // TODO: construct counterexample
@@ -201,7 +225,7 @@ bool IC3BackUa::base_check()
         // ProofGoal * pg = new ProofGoal(c, 0, nullptr);
         // reconstruct_trace(pg, cex_);
         // delete pg;
-        return FALSE;
+        return false;
     } else {
         assert(r.is_unsat());
         // reached_k_ = 1;  // keep reached_k_ aligned with number of frames
@@ -211,7 +235,7 @@ bool IC3BackUa::base_check()
     return true;
 }
  
-bool IC3BackUa::check(size_t k, const IC3Formula & t, IC3Formula & out)
+bool IC3BackUa::check(size_t k, const IC3Formula & t)
 {
     push_solver_context();
 
@@ -230,31 +254,40 @@ bool IC3BackUa::check(size_t k, const IC3Formula & t, IC3Formula & out)
         return FALSE;
     }
     else {
-        push_solver_context();
-
-        // not B[k]
-        solver_->assert_formula(
-                solver_->make_term(Not, get_frame_term(k))
-        );
-
-        // trans
-        solver_->assert_formula(trans_label_);
-
-        // t'
-        solver_->assert_formula(ts_.next(t.term));
-        Result r = check_sat();
-        if (r.is_sat()) {
-            // TODO: generalization(s)
-            // s = a and b and c
-            // drop a, b and c = generalization(s), check SAT?
-            IC3Formula s = get_model_ic3formula();
-            out = generate(s);  
-        }
-        else{
-            // TODO: get the unsat core \bar{t} of t that can reach B0
-            //   add \bar{t} to Bk-1, Bk, Bk+1
-        }   
+        pop_solver_context();
     }
+
+    push_solver_context();
+
+    // not B[k]
+    solver_->assert_formula(
+            solver_->make_term(Not, get_frame_term(k))
+    );
+
+    // trans
+    solver_->assert_formula(trans_label_);
+
+    // t'
+    solver_->assert_formula(ts_.next(t.term));
+    r = check_sat();
+    if (r.is_sat()) {
+        // TODO: generalization(s)
+        // s = a and b and c
+        // drop a, b and c = generalization(s), check SAT?
+        IC3Formula s = get_model_ic3formula();
+        IC3Formula out = generate(s);  
+
+        // std::cout << "out.term: " << out.term << std::endl;
+
+        // add out to Bi+1
+        constrain_frame(k + 1, out, true);
+    }
+    else{
+        // TODO: get the unsat core \bar{t} of t that can reach B0
+        //   add \bar{t} to Bk-1, Bk, Bk+1
+    }   
+    pop_solver_context();
+
     return TRUE;
 
 }
@@ -277,9 +310,11 @@ bool IC3BackUa::invar_check(size_t k)
 
     if (r.is_sat()) {
         // TODO: the SAT result can be used in the unsat core \bar{t} part
+        pop_solver_context();
         return FALSE;
     }
     else {
+        pop_solver_context();
         return TRUE;
     }
 }
@@ -332,7 +367,62 @@ Term IC3BackUa::get_frame_term(size_t i) const
 
 IC3Formula IC3BackUa::generate(IC3Formula & s)
 {
+    
     return s;
+}
+
+void IC3BackUa::reset_solver()
+{
+    assert(solver_context_ == 0);
+
+    if (failed_to_reset_solver_) {
+        // don't even bother trying
+        // this solver doesn't support reset_assertions
+        return;
+    }
+
+    try {
+        solver_->reset_assertions();
+
+        // Now need to add back in constraints at context level 0
+        logger.log(2, "IC3Base: Reset solver and now re-adding constraints.");
+
+        // define init, trans, and bad labels
+        assert(bad_label_ == frame_labels_.at(0));
+        solver_->assert_formula(
+            solver_->make_term(Implies, init_label_, ts_.init()));
+
+        solver_->assert_formula(
+            solver_->make_term(Implies, trans_label_, ts_.trans()));
+
+        solver_->assert_formula(solver_->make_term(Implies, bad_label_, bad_));
+
+        Term prop = smart_not(bad_);
+        for (size_t i = 0; i < frames_.size(); ++i) {
+            assert(i < frame_labels_.size());
+            // all frames except for F[0] include the property
+            // but it's not stored in frames_ because it's not guaranteed to
+            // be a valid IC3Formula
+            if (i) {
+                solver_->assert_formula(
+                    solver_->make_term(Implies, frame_labels_.at(i), bad_));
+            }
+
+            // add all other constraints from the frame
+            for (const auto & constraint : frames_.at(i)) {
+                constrain_frame_label(i, constraint);
+            }
+        }
+    }
+    catch (SmtException & e) {
+        logger.log(1,
+                "Failed to reset solver (underlying solver must not support "
+                "it). Disabling solver resets for rest of run.");
+        failed_to_reset_solver_ = true;
+    }
+
+    num_check_sat_since_reset_ = 0;
+
 }
 
 }
