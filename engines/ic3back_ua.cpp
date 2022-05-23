@@ -139,7 +139,7 @@ ProverResult IC3BackUa::back_step(int i)
         }
     }
 
-    std::cout << "reached_k_" << reached_k_ << std::endl;
+    // std::cout << "reached_k_" << reached_k_ << std::endl;
     
 
     // reached_k_ is the number of transitions that have been checked,
@@ -156,7 +156,7 @@ ProverResult IC3BackUa::back_step(int i)
 
     for (size_t j = 0; j < Fi.size(); ++j) 
     {
-        std::cout << "Fi[" << j << "]: " << Fi[j].term << std::endl;
+        // std::cout << "Fi[" << j << "]: " << Fi[j].term << std::endl;
         if (!check(i, Fi[j])) {
             // counter-example
             // TODO: construct the counterexample.
@@ -275,7 +275,7 @@ bool IC3BackUa::check(size_t k, const IC3Formula & t)
         // s = a and b and c
         // drop a, b and c = generalization(s), check SAT?
         IC3Formula s = get_model_ic3formula();
-        IC3Formula out = generate(s);  
+        IC3Formula out = generate(s, t.term);  
 
         // std::cout << "out.term: " << out.term << std::endl;
 
@@ -365,10 +365,50 @@ Term IC3BackUa::get_frame_term(size_t i) const
     return res;
 }
 
-IC3Formula IC3BackUa::generate(IC3Formula & s)
+IC3Formula IC3BackUa::generate(IC3Formula & s, const Term & t)
 {
+    IC3Formula gen = s;
+    Term dropped;
+    UnorderedTermSet necessary;
+
+    size_t i = 0;
+    while (i < gen.children.size() && gen.children.size() > 1) {
+        
+        // try dropping i
+        dropped = gen.children.at(i);
+        if (necessary.find(dropped) != necessary.end()) {
+            // can not drop
+            i++;
+            continue;
+        }
+        
+        gen.children.erase(gen.children.begin() + i);
+        gen = ic3formula_conjunction(gen.children);
+
+        push_solver_context();
+
+        solver_->assert_formula(gen.term);
+
+        // trans
+        solver_->assert_formula(trans_label_);
+
+        // t'
+        solver_->assert_formula(ts_.next(t));
+
+        Result r = check_sat();
+        if (r.is_sat()) {
+            i = 0;
+        }
+        else {
+           necessary.insert(dropped);
+           gen.children.push_back(dropped);
+        }
+        pop_solver_context();
+    }
+
+    gen = ic3formula_conjunction(gen.children);
     
-    return s;
+    return gen;
 }
 
 void IC3BackUa::reset_solver()
