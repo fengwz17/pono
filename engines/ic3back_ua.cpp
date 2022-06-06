@@ -29,7 +29,7 @@ IC3BackUa::IC3BackUa(const Property & p, const TransitionSystem & ts,
          const smt::SmtSolver & s, PonoOptions opt)
   : super(p, ts, s, opt)
 {
-    engine_ = Engine::IC3BackUa_ENGINE;
+    engine_ = Engine::IC3BACKUA_ENGINE;
 }
 
 void IC3BackUa::initialize()
@@ -152,22 +152,45 @@ ProverResult IC3BackUa::back_step(int i)
 
     push_frame();
 
+    // std::cout << "current frames_.size(): " << frames_.size() << std::endl;
+
+    // for (size_t k = 0; k < frames_.size(); ++k)
+    // {
+    //     vector<IC3Formula> Fk = frames_.at(k);
+    //     for (size_t j = 0; j < Fk.size(); ++j)
+    //     {
+    //         std::cout << "F" << k << "[" << j << "]: " << Fk[j].term << std::endl;
+    //     }
+    // }
+
     const vector<IC3Formula> & Fi = frames_.at(i);
 
     for (size_t j = 0; j < Fi.size(); ++j) 
     {
         // std::cout << "Fi[" << j << "]: " << Fi[j].term << std::endl;
-        if (!check(i, Fi[j])) {
+        if (!forward_check(i, Fi[j])) {
             // counter-example
             // TODO: construct the counterexample.
             return ProverResult::FALSE;
         }
     }
 
-    logger.log(1, "current phase at frame {}", i);
+    // std::cout << "---------------- after checking ----------------" << std::endl;
+    // std::cout << "current frames_.size(): " << frames_.size() << std::endl;
+    // for (size_t k = 0; k < frames_.size(); ++k)
+    // {
+    //     vector<IC3Formula> Fk = frames_.at(k);
+    //     for (size_t j = 0; j < Fk.size(); ++j)
+    //     {
+    //         std::cout << "F" << k << "[" << j << "]: " << Fk[j].term << std::endl;
+    //     }
+    // }
+
+    // std::cout << "frames_.at(i): " << frames_.at(i).size() << " frames_.at(i+1): " << frames_.at(i+1).size() << std::endl;
 
     // check if Bi = Bi+1 and isUNSAT(not Bi+1 /\ T /\ B'i+1)
     if (frames_.at(i).size() == frames_.at(i + 1).size()) {
+        std::cout << "checking invar......" << std::endl;
         if (invar_check(i + 1)) {
             return ProverResult::TRUE;
         }
@@ -234,8 +257,8 @@ bool IC3BackUa::base_check()
 
     return true;
 }
- 
-bool IC3BackUa::check(size_t k, const IC3Formula & t)
+
+bool IC3BackUa::forward_check(size_t k, const IC3Formula & t)
 {
     push_solver_context();
 
@@ -275,12 +298,31 @@ bool IC3BackUa::check(size_t k, const IC3Formula & t)
         // s = a and b and c
         // drop a, b and c = generalization(s), check SAT?
         IC3Formula s = get_model_ic3formula();
-        IC3Formula out = generate(s, t.term);  
 
-        // std::cout << "out.term: " << out.term << std::endl;
+        // std::cout << "start generating..." << std::endl;
 
+        IC3Formula out = generate(s, k);  
+        // IC3Formula out = s;
+
+        // std::cout << "before extending ..." << std::endl;
+        
+        // vector<IC3Formula> Fk1 = frames_.at(k+1);
+        // for (size_t j = 0; j < Fk1.size(); ++j)
+        // {
+        //     std::cout << "F" << k+1 << "[" << j << "]: " << Fk1[j].term << std::endl;
+        // }
+        
         // add out to Bi+1
-        constrain_frame(k + 1, out, true);
+        extend_frame(k + 1, out);
+
+        // Fk1 = frames_.at(k+1);
+
+        // std::cout << "after extending ..." << std::endl;
+
+        // for (size_t j = 0; j < Fk1.size(); ++j)
+        // {
+        //     std::cout << "F" << k+1 << "[" << j << "]: " << Fk1[j].term << std::endl;
+        // }
     }
     else{
         // TODO: get the unsat core \bar{t} of t that can reach B0
@@ -328,7 +370,7 @@ void IC3BackUa::push_frame()
                            solver_->make_sort(BOOL)));
   // frames_.push_back({});
   TermVec badTermVec = {bad_};
-  IC3Formula bad = ic3formula_conjunction(badTermVec);
+  IC3Formula bad = ic3formula_disjunction(badTermVec);
   if (frames_.size() == 0)
   {
       frames_.push_back({bad});
@@ -349,15 +391,15 @@ void IC3BackUa::push_frame()
 Term IC3BackUa::get_frame_term(size_t i) const
 {
     if (i == 0) {
-    // F[0] is always the bad states constraint
-    return bad_;
+        // F[0] is always the bad states constraint
+        return bad_;
     }
 
     Term res = solver_true_;
-    for (size_t j = i; j < frames_.size(); ++j) {
-        for (const auto &u : frames_[j]) {
+    // for (size_t j = i; j < frames_.size(); ++j) {
+    for (const auto &u : frames_[i]) {
         res = solver_->make_term(And, res, u.term);
-        }
+        // }
     }
 
     // the property is implicitly part of the frame
@@ -365,8 +407,9 @@ Term IC3BackUa::get_frame_term(size_t i) const
     return res;
 }
 
-IC3Formula IC3BackUa::generate(IC3Formula & s, const Term & t)
+IC3Formula IC3BackUa::generate(IC3Formula & s, size_t k)
 {
+    // std::cout << "s: " << s.term << std::endl;
     IC3Formula gen = s;
     Term dropped;
     UnorderedTermSet necessary;
@@ -375,38 +418,53 @@ IC3Formula IC3BackUa::generate(IC3Formula & s, const Term & t)
     while (i < gen.children.size() && gen.children.size() > 1) {
         
         // try dropping i
+        // std::cout << "i: " << i << std::endl;
         dropped = gen.children.at(i);
+        // std::cout << "dropped: " << dropped << std::endl;
         if (necessary.find(dropped) != necessary.end()) {
             // can not drop
             i++;
             continue;
         }
-        
-        gen.children.erase(gen.children.begin() + i);
-        gen = ic3formula_conjunction(gen.children);
+
+        IC3Formula tmp = gen;
+        // tmp.children.erase(tmp.children.begin() + i);
+        // tmp.children.push_back(solver_->make_term(Not, dropped));
+        tmp.children.at(i) = solver_->make_term(Not, dropped);
+        tmp = ic3formula_conjunction(tmp.children);
 
         push_solver_context();
 
-        solver_->assert_formula(gen.term);
+        // std::cout << "tmp: " << tmp.term << std::endl;
+        // std::cout << "trans: " << ts_.trans() << std::endl;
+        // std::cout << "B[k]': " << ts_.next(get_frame_term(k)) << std::endl;
+        // std::cout << "Bk: " << ts_.next(get_frame_term(k)) << std::endl;
+
+        solver_->assert_formula(tmp.term);
 
         // trans
         solver_->assert_formula(trans_label_);
 
-        // t'
-        solver_->assert_formula(ts_.next(t));
+        // B[k]'
+        solver_->assert_formula(ts_.next(get_frame_term(k)));
+
+        // std::cout << "start checking... " << std::endl;
 
         Result r = check_sat();
         if (r.is_sat()) {
-            i = 0;
+            gen.children.erase(gen.children.begin() + i);
+            gen = ic3formula_conjunction(gen.children);
         }
         else {
            necessary.insert(dropped);
-           gen.children.push_back(dropped);
         }
         pop_solver_context();
+        i++;
     }
 
     gen = ic3formula_conjunction(gen.children);
+
+    // std::cout << "gen: " << gen.term << std::endl;
     
     return gen;
 }
@@ -465,4 +523,22 @@ void IC3BackUa::reset_solver()
 
 }
 
+void IC3BackUa::extend_frame(size_t k, const IC3Formula & s) {
+    bool flag = false;
+    vector<IC3Formula> Fk = frames_.at(k);
+    for (size_t j = 0; j < Fk.size(); ++j)
+    {
+        if (s.term == Fk[j].term)
+        {
+            flag = true;
+            break;
+        }
+    }
+    if (flag == false)
+    {
+        solver_->assert_formula(
+            solver_->make_term(Implies, frame_labels_.at(k), s.term));
+        frames_.at(k).push_back(s);
+    }   
+}
 }

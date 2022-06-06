@@ -1,0 +1,15 @@
+(declare-const u (_ BitVec 4))
+(declare-const v (_ BitVec 4))
+(declare-const u.next (_ BitVec 4))
+(declare-const v.next (_ BitVec 4))
+(define-fun sv1 () (_ BitVec 4) (! u :next u.next))
+(define-fun sv2 () (_ BitVec 4) (! v :next v.next))
+
+(define-fun init () Bool
+(! (and (= u #b0001) (= v #b0001)) :init true))
+
+(define-fun trans () Bool
+(! (and (= u.next (bvadd u v)) (= v.next (bvadd v #b0001))) :trans true))
+
+(define-fun prop () Bool
+(! (not (= (bvadd u v) #b0001)) :invar-property 0))  
