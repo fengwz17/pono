@@ -173,6 +173,13 @@ ProverResult IC3Base::check_until(int k)
         continue;
       } else if (s == REFINE_NONE) {
         // this is a real counterexample
+
+        // fengwz: print cex_
+        // for (size_t i = 0; i < cex_.size(); ++i){
+        //   std::cout << "i: " << i << cex_[i] << std::endl;
+        //   std::cout << std::endl;
+        // }
+        // std::cout << "cex_.size(): " << cex_.size() << std::endl;
         assert(cex_.size());
         return ProverResult::FALSE;
       } else {
@@ -580,6 +587,17 @@ bool IC3Base::block_all()
 
     while (!proof_goals.empty()) {
       const ProofGoal * pg = proof_goals.top();
+
+      // fengwz: print ProofGoalQueue
+      // const ProofGoal * pg_tmp = proof_goals.top();
+      // int i = 0;
+      // while (pg_tmp)
+      // {
+      //   i++;
+      //   std::cout << "proof_goals idx: " << pg_tmp->idx << std::endl;
+      //   pg_tmp = pg_tmp->next; 
+      // }
+      // std::cout << "proof_goals length: " << i << std::endl;
 
       if (!pg->idx) {
         // went all the way back to initial
