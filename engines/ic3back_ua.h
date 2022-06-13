@@ -78,7 +78,7 @@ class IC3BackUa : public IC3
 
     smt::Term get_frame_term(size_t i) const;
 
-    IC3Formula generate(IC3Formula & s, size_t k);
+    IC3Formula generate(IC3Formula & s, smt::Term, size_t k);
 
     void reset_solver();
 

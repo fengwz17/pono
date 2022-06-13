@@ -236,9 +236,12 @@ bool IC3BackUa::base_check()
     logger.log(1, "Checking if inital states can violate property in one-step");
 
     push_solver_context();
-    solver_->assert_formula(ts_.init());
-    solver_->assert_formula(ts_.trans());
-    solver_->assert_formula(ts_.next(bad_));
+    // solver_->assert_formula(ts_.init());
+    solver_->assert_formula(init_label_);
+    // solver_->assert_formula(ts_.trans());
+    solver_->assert_formula(trans_label_);
+    // solver_->assert_formula(ts_.next(bad_));
+    solver_->assert_formula(ts_.next(bad_label_));
     
     Result r = check_sat();
     if (r.is_sat()) {
@@ -267,6 +270,7 @@ bool IC3BackUa::forward_check(size_t k, const IC3Formula & t)
 
     // trans
     solver_->assert_formula(trans_label_);
+    // solver_->assert_formula(ts_.trans());
 
     // t'
     solver_->assert_formula(ts_.next(t.term));
@@ -289,20 +293,24 @@ bool IC3BackUa::forward_check(size_t k, const IC3Formula & t)
 
     // trans
     solver_->assert_formula(trans_label_);
+    // solver_->assert_formula(ts_.trans());
 
     // t'
     solver_->assert_formula(ts_.next(t.term));
+
+    // std::cout << "t'" << ts_.next(t.term) << std::endl;
+
     r = check_sat();
     if (r.is_sat()) {
         // TODO: generalization(s)
         // s = a and b and c
         // drop a, b and c = generalization(s), check SAT?
         IC3Formula s = get_model_ic3formula();
-
+        TermVec input_lits = get_input_values();
+        Term input_formula = make_and(input_lits);
         // std::cout << "start generating..." << std::endl;
-
-        IC3Formula out = generate(s, k);  
-        // IC3Formula out = s;
+        pop_solver_context();
+        IC3Formula out = generate(s, input_formula, k);  
 
         // std::cout << "before extending ..." << std::endl;
         
@@ -325,10 +333,11 @@ bool IC3BackUa::forward_check(size_t k, const IC3Formula & t)
         // }
     }
     else{
+        pop_solver_context();
         // TODO: get the unsat core \bar{t} of t that can reach B0
         //   add \bar{t} to Bk-1, Bk, Bk+1
     }   
-    pop_solver_context();
+    
 
     return TRUE;
 
@@ -344,6 +353,7 @@ bool IC3BackUa::invar_check(size_t k)
 
     // trans
     solver_->assert_formula(trans_label_);
+    // solver_->assert_formula(ts_.trans());
 
     // B[k]
     solver_->assert_formula(ts_.next(get_frame_term(k)));
@@ -396,9 +406,10 @@ Term IC3BackUa::get_frame_term(size_t i) const
     }
 
     Term res = solver_true_;
+    res = solver_->make_term(Not, res);
     // for (size_t j = i; j < frames_.size(); ++j) {
     for (const auto &u : frames_[i]) {
-        res = solver_->make_term(And, res, u.term);
+        res = solver_->make_term(Or, res, u.term);
         // }
     }
 
@@ -407,8 +418,9 @@ Term IC3BackUa::get_frame_term(size_t i) const
     return res;
 }
 
-IC3Formula IC3BackUa::generate(IC3Formula & s, size_t k)
+IC3Formula IC3BackUa::generate(IC3Formula & s, Term input_formula, size_t k)
 {
+    /*
     // std::cout << "s: " << s.term << std::endl;
     IC3Formula gen = s;
     Term dropped;
@@ -467,6 +479,121 @@ IC3Formula IC3BackUa::generate(IC3Formula & s, size_t k)
     // std::cout << "gen: " << gen.term << std::endl;
     
     return gen;
+    */
+    IC3Formula out;
+    push_solver_context();
+    
+    // assumps_.clear();
+    // use assumptions for s
+    TermVec assumps;
+    // assumps_.clear();
+    
+    Term lbl;
+    for (const auto & ss : s.children) {
+        lbl = label(ss);
+        if (lbl != ss && !is_global_label(lbl)){
+            solver_->assert_formula(solver_->make_term(Implies, lbl, ss));
+        }
+        assumps.push_back(lbl);
+        // std::cout << "lbl: " << lbl << std::endl;
+        // std::cout << "ss: " << ss << std::endl;
+    }
+
+    
+    // input
+    solver_->assert_formula(input_formula);
+   
+    // trans
+    // solver_->assert_formula(ts_.trans());
+    solver_->assert_formula(trans_label_);
+
+    // \neg B[k]'
+    solver_->assert_formula(ts_.next(
+            solver_->make_term(Not, get_frame_term(k))));
+
+    // solver_->assert_formula(s.term);
+
+    // Term formula = input_formula;
+    // formula = solver_->make_term(And, formula, ts_.trans());
+    // formula = solver_->make_term(And, formula, 
+    //     ts_.next(solver_->make_term(Not, get_frame_term(k))));
+
+    // std::cout << "T: " << ts_.trans() << std::endl;
+    // std::cout << "input: " << input_formula << std::endl; 
+    // std::cout << "\\neg B'[k]: " << ts_.next(
+    //         solver_->make_term(Not, get_frame_term(k)))<< std::endl;
+
+    // std::cout << "s: " << s.term << std::endl; 
+
+    Result r = check_sat_assuming(assumps);
+    // Result r = check_sat();
+    assert(r.is_unsat());
+    if (r.is_sat()){
+        throw PonoException("s \\wedge i \\wedge T \\wedge \\neg B'_{k} must be UNSAT");
+    }
+    else if (options_.ic3_unsatcore_gen_){
+        // std::cout << r << std::endl;
+        assert(r.is_unsat());
+        UnorderedTermSet core;
+        solver_->get_unsat_assumptions(core);
+        assert(core.size());
+        // std::cout << "core.size(): " << core.size() << std::endl;
+
+        // std::cout << "core: " << std::endl;
+        // for (auto& corei :core)
+        // {
+        //     std::cout << corei << " " << std::endl;
+        // }
+        
+        TermVec gen;
+        TermVec rem;
+
+        assert(assumps.size() == s.children.size());
+        for (size_t i = 0; i < assumps.size(); ++i) {
+            if (core.find(assumps.at(i)) == core.end()) {
+                rem.push_back(s.children.at(i));
+            } 
+            else {
+                gen.push_back(s.children.at(i));
+            }
+        }  
+
+        // std::cout << "formula: " << formula << std::endl; 
+        // TermVec red_cube_lits, rem_cube_lits;
+        // reducer_.reduce_assump_unsatcore(
+        //     formula, assumps, red_cube_lits, &rem_cube_lits);
+
+        // should need some assumptions
+        // formula should not be unsat on its own
+        // assert(red_cube_lits.size() > 0);
+
+
+        // // std::cout << "h1" << std::endl;
+        // std::cout << "rem: " << make_and(rem) << std::endl;
+        // std::cout << "gen: " << make_and(gen) << std::endl;
+
+        // Term formula = get_frame_term(k);
+
+        // // formula = solver_->make_term(And, formula, make_and(gen));
+        
+        // bool unsat = reducer_.reduce_assump_unsatcore(formula, rem, gen);
+        // assert(unsat);
+        
+        // std::cout << "gen: " << make_and(gen) << std::endl;
+        // assert(gen.size() >= core.size());
+        
+        out = ic3formula_conjunction(gen);
+        // out = ic3formula_conjunction(red_cube_lits);
+        // std::cout << "out: " << out.term << std::endl;
+    }
+    else{
+        std::cout << "unsat core is not used" << std::endl;
+        assert(r.is_unsat());
+        out = s;
+    }
+    pop_solver_context();
+
+    return out;
 }
 
 void IC3BackUa::reset_solver()
