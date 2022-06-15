@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <queue>
+#include <map>
 
 #include "engines/prover.h"
 #include "smt-switch/utils.h"
@@ -78,11 +79,20 @@ class IC3BackUa : public IC3
 
     smt::Term get_frame_term(size_t i) const;
 
-    IC3Formula generate(IC3Formula & s, smt::Term, size_t k);
+    IC3Formula generate(const IC3Formula & s, smt::Term, size_t k);
 
     void reset_solver();
 
     void extend_frame(size_t k, const IC3Formula & s);
+
+    // void act(IC3Formula & t);
+    // void inact(IC3Formula & t);
+
+    std::map<smt::Term, bool> act_map_;
+
+    std::vector<IC3Formula> O;
+
+    smt::Term get_act_frame_term(size_t i); 
 
 };
  
