@@ -34,3 +34,5 @@
 build
 deps
 __pycache__
+
+chisel-test

@@ -545,10 +545,14 @@ IC3Formula IC3BackUa::generate(const IC3Formula & s, Term input_formula, size_t 
     // Result r = check_sat();
     assert(r.is_unsat());
     if (r.is_sat()){
-        throw PonoException("s \\wedge i \\wedge T \\wedge \\neg B'_{k} must be UNSAT");
+        std::cout << "ts_.is_deterministic() is " << ts_.is_deterministic() << std::endl;
+        std::cout << "currently we cannot handle undeterminisitc case.\n"; 
+        throw PonoException("s \\wedge i \\wedge T \\wedge \\neg B'_{k} should be UNSAT");
     }
-    else if (options_.ic3_unsatcore_gen_){
-        // std::cout << r << std::endl;
+    else{
+        // std::cout << "unsat core is not used" << std::endl;
+        // assert(r.is_unsat());
+        // out = s;
         assert(r.is_unsat());
         UnorderedTermSet core;
         solver_->get_unsat_assumptions(core);
@@ -574,38 +578,18 @@ IC3Formula IC3BackUa::generate(const IC3Formula & s, Term input_formula, size_t 
             }
         }  
 
-        // std::cout << "formula: " << formula << std::endl; 
-        // TermVec red_cube_lits, rem_cube_lits;
-        // reducer_.reduce_assump_unsatcore(
-        //     formula, assumps, red_cube_lits, &rem_cube_lits);
+        // reduced unsat core
+        Term notBnext = ts_.next(solver_->make_term(Not, get_frame_term(k)));
+        Term formula = make_and({input_formula, 
+                                 ts_.trans(), 
+                                 notBnext}) ;
 
-        // should need some assumptions
-        // formula should not be unsat on its own
-        // assert(red_cube_lits.size() > 0);
-
-
-        // // std::cout << "h1" << std::endl;
-        // std::cout << "rem: " << make_and(rem) << std::endl;
-        // std::cout << "gen: " << make_and(gen) << std::endl;
-
-        // Term formula = get_frame_term(k);
-
-        // // formula = solver_->make_term(And, formula, make_and(gen));
+        TermVec red_cube_lits, rem_cube_lits;
+        reducer_.reduce_assump_unsatcore(
+            formula, gen, red_cube_lits, NULL, options_.ic3_gen_max_iter_);
         
-        // bool unsat = reducer_.reduce_assump_unsatcore(formula, rem, gen);
-        // assert(unsat);
-        
-        // std::cout << "gen: " << make_and(gen) << std::endl;
-        // assert(gen.size() >= core.size());
-        
-        out = ic3formula_conjunction(gen);
-        // out = ic3formula_conjunction(red_cube_lits);
-        // std::cout << "out: " << out.term << std::endl;
-    }
-    else{
-        std::cout << "unsat core is not used" << std::endl;
-        assert(r.is_unsat());
-        out = s;
+        out = ic3formula_conjunction(red_cube_lits);
+
     }
     pop_solver_context();
 

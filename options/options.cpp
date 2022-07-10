@@ -122,7 +122,7 @@ const option::Descriptor usage[] = {
     "engine",
     Arg::NonEmpty,
     "  --engine, -e <engine> \tSelect engine from [bmc, bmc-sp, ind, "
-    "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr]." },
+    "interp, mbic3, ic3bits, ic3back_ua, ic3backbits, ic3back_prop, ic3backbits_prop, ic3ia, msat-ic3ia, ic3sa, sygus-pdr]." },
   { BOUND,
     0,
     "k",
@@ -432,7 +432,11 @@ const std::unordered_set<Engine> ic3_variants_set({ IC3_BOOL,
                                                     MSAT_IC3IA,
                                                     IC3SA_ENGINE,
                                                     IC3BACKUA_ENGINE,
+                                                    IC3BACKPROP_ENGINE,
                                                     IC3BACKBITS_ENGINE,
+                                                    IC3BACKBITSPROP_ENGINE,
+                                                    IC3BACKDUAL_ENGINE,
+                                                    IC3BACKBITSDUAL_ENGINE,
                                                     SYGUS_PDR });
 
 const std::unordered_set<Engine> & ic3_variants() { return ic3_variants_set; }
@@ -676,8 +680,24 @@ string to_string(Engine e)
       res = "ic3back_ua";
       break;
     }
+    case IC3BACKPROP_ENGINE: {
+      res = "ic3back_prop";
+      break;
+    }
     case IC3BACKBITS_ENGINE: {
       res = "ic3backbits";
+      break;
+    }
+    case IC3BACKBITSPROP_ENGINE: {
+      res = "ic3backbits_prop";
+      break;
+    }
+    case IC3BACKDUAL_ENGINE: {
+      res = "ic3back_dual";
+      break;
+    }
+    case IC3BACKBITSDUAL_ENGINE: {
+      res = "ic3backbits_dual";
       break;
     }
     default: {
