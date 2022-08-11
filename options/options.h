@@ -143,7 +143,8 @@ class PonoOptions
             default_sygus_use_operator_abstraction_),
         ic3sa_initial_terms_lvl_(default_ic3sa_initial_terms_lvl_),
         ic3sa_interp_(default_ic3sa_interp_),
-        print_wall_time_(default_print_wall_time_)
+        print_wall_time_(default_print_wall_time_),
+        term_based_(default_term_based_)
   {
   }
 
@@ -228,6 +229,7 @@ class PonoOptions
   bool ic3sa_interp_;
   // print wall clock time spent in entire execution
   bool print_wall_time_;
+  bool term_based_;
 
  private:
   // Default options
@@ -278,6 +280,7 @@ class PonoOptions
   static const size_t default_ic3sa_initial_terms_lvl_ = 4;
   static const bool default_ic3sa_interp_ = false;
   static const bool default_print_wall_time_ = false;
+  static const bool default_term_based_ = true;
 };
 
 // Useful functions for printing etc...

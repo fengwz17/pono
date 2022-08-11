@@ -72,7 +72,8 @@ enum optionIndex
   SYGUS_TERM_MODE,
   IC3SA_INITIAL_TERMS_LVL,
   IC3SA_INTERP,
-  PRINT_WALL_TIME
+  PRINT_WALL_TIME,
+  TERM_BASED
 };
 
 struct Arg : public option::Arg
@@ -418,6 +419,12 @@ const option::Descriptor usage[] = {
     "print-wall-time",
     Arg::None,
     "  --print-wall-time \tPrint wall clock time of entire execution" },
+  { TERM_BASED,
+    0,
+    "",
+    "term-based",
+    Arg::None,
+    "  --term-based \tuse term based algorithm to update B formula" },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -582,6 +589,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
           // not possible because Arg::Unknown returns ARG_ILLEGAL
           // which aborts the parse with an error
           break;
+        case TERM_BASED: term_based_ = false; break;
       }
     }
 
