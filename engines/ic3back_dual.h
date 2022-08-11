@@ -64,6 +64,14 @@ class IC3BackDual : public IC3
      */
     bool forward_check(size_t k, const IC3Formula & t);
 
+    bool forward_check_prop();
+
+    IC3Formula print_generate_input(const IC3Formula & s, smt::Term input);
+
+    inline long mid_num(const std::string& s) {
+        return std::strtol(&s[s.find('_') + 1], nullptr, 10);
+    }
+
     // /** isSAT(s /\ T /\ t')
     //  *  @param 
     //  *  @return s

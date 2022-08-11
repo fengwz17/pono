@@ -19,6 +19,7 @@
 #include "smt/available_solvers.h"
 #include "utils/logger.h"
 #include "utils/term_analysis.h"
+#include <fstream>
 
 using namespace smt;
 using namespace std;
@@ -161,25 +162,43 @@ ProverResult IC3BackDual::dual_step(int i)
     vector<IC3Formula> & B = frames_back;
     size_t original_size = B.size();
 
-    for (size_t j = 0; j < B.size(); ++j) 
-    {
-        if (act_map_[B[j].term] == true) {
-            // std::cout << "Fi[" << j << "]: " << Fi[j].term << std::endl;
-            if (!forward_check(i, B[j])) {
-                // counter-example
-                // TODO: construct the counterexample.
-                return ProverResult::FALSE;
+    // finding the predecessor from an active term
+    if (options_.term_based_) {
+        
+        for (size_t j = 0; j < B.size(); ++j) 
+        {
+            if (act_map_[B[j].term] == true) {
+                // std::cout << "Fi[" << j << "]: " << Fi[j].term << std::endl;
+                if (!forward_check(i, B[j])) {
+                    // counter-example
+                    // TODO: construct the counterexample.
+                    return ProverResult::FALSE;
+                }
             }
+        
         }
-       
-    }
 
-     if (frames_back.size() == original_size) {
-        // std::cout << "checking invar......" << std::endl;
-        // if (invar_check(i + 1)) {
-        //     return ProverResult::TRUE;
-        // }
-        return ProverResult::TRUE;
+        if (frames_back.size() == original_size) {
+            // std::cout << "checking invar......" << std::endl;
+            // if (invar_check(i + 1)) {
+            //     return ProverResult::TRUE;
+            // }
+            return ProverResult::TRUE;
+        }
+    }
+    // finding the predecessors from B 
+    else {
+        if (!forward_check_prop()){
+            return ProverResult::FALSE;
+        }
+        if (frames_back.size() == original_size) {
+            // std::cout << "checking invar......" << std::endl;
+            // if (invar_check(i + 1)) {
+            //     return ProverResult::TRUE;
+            // }
+            return ProverResult::TRUE;
+        }
+
     }
 
     // TODO: rewrite reset_solver()
@@ -198,8 +217,9 @@ bool IC3BackDual::block_all()
   while (reaches_bad(goal)) {
     assert(goal.term);            // expecting non-null
     assert(proof_goals.empty());  // bad should be the first goal each iteration
-
+    // std::cout << "kk\n";
     proof_goals.new_proof_goal(goal, frontier_idx(), nullptr);
+    // std::cout << "cc\n";
 
     while (!proof_goals.empty()) {
       const ProofGoal * pg = proof_goals.top();
@@ -251,7 +271,7 @@ bool IC3BackDual::block_all()
         // remove the proof goal now that it has been blocked
         assert(pg == proof_goals.top());
         proof_goals.pop();
-
+        // std::cout << "d\n";
         if (options_.ic3_indgen_) {
           collateral = inductive_generalization(pg->idx, collateral);
         } else {
@@ -280,16 +300,19 @@ bool IC3BackDual::block_all()
         proof_goals.new_proof_goal(collateral, pg->idx - 1, pg);
       }
     }  // end while(!proof_goals.empty())
+    // std::cout << "dd\n";
 
     assert(!(goal = IC3Formula()).term);  // in debug mode, reset it
   }                                       // end while(reaches_bad(goal))
-
+  // std::cout << "ddd\n";
   assert(proof_goals.empty());
   return true;
 }
 
+// have bugs
 bool IC3BackDual::reaches_bad(IC3Formula & out)
 {
+    // std::cout << "rr\n";
     push_solver_context();
     // assert the last frame (conjunction over clauses)
     assert_frame_labels(frontier_idx());
@@ -299,6 +322,7 @@ bool IC3BackDual::reaches_bad(IC3Formula & out)
     Term B = get_back_frame_term(false);
     solver_->assert_formula(ts_.next(B));
     solver_->assert_formula(trans_label_);
+    // solver_->assert_formula(ts_.trans());
     Result r = check_sat();
 
     if (r.is_sat()) {
@@ -307,11 +331,13 @@ bool IC3BackDual::reaches_bad(IC3Formula & out)
     assert(out.children.size());
     assert(ic3formula_check_valid(out));
 
+    // std::cout << "rprp\n";
     if (options_.ic3_pregen_) {
         // try to generalize if predecessor generalization enabled
         // predecessor_generalization_and_fix(frames_.size(), bad_, out);
         predecessor_generalization_and_fix(frames_.size(), B, out);
     }
+    // std::cout << "rfrf\n";
 
     assert(out.term);
     assert(out.children.size());
@@ -321,10 +347,12 @@ bool IC3BackDual::reaches_bad(IC3Formula & out)
     pop_solver_context();
 
     assert(!r.is_unknown());
+    // std::cout << "rere\n";
     return r.is_sat();
 
 }
 
+// has bugs
 void IC3BackDual::predecessor_generalization(size_t i,
                                      const Term & c,
                                      IC3Formula & pred)
@@ -334,6 +362,7 @@ void IC3BackDual::predecessor_generalization(size_t i,
     // sat
     assert(i > 0);
     assert(!pred.disjunction);
+    // std::cout << "pgpg\n";
 
     const UnorderedTermSet & statevars = ts_.statevars();
     TermVec input_lits = get_input_values();
@@ -376,16 +405,19 @@ void IC3BackDual::predecessor_generalization(size_t i,
     }
     // TODO: consider adding functional pre-image here
     //       not sure if it makes sense to have at the boolean level
-
+    
     TermVec red_cube_lits, rem_cube_lits;
     reducer_.reduce_assump_unsatcore(
         formula, cube_lits, red_cube_lits, &rem_cube_lits);
-
+    // std::cout << "pgdpgd\n";
     // should need some assumptions
     // formula should not be unsat on its own
+
+    // has bug
     assert(red_cube_lits.size() > 0);
 
     pred = ic3formula_conjunction(red_cube_lits);
+    // std::cout << "pgepge\n";
     // expecting a Cube here
     assert(!pred.disjunction);
 
@@ -703,6 +735,184 @@ void IC3BackDual::extend_frame_back(const IC3Formula & s) {
 //           || std::count(frame_labels_back.begin(), frame_labels_back.end(), l));
 // }
 
+bool IC3BackDual::forward_check_prop() {
+    
+    push_solver_context();
+
+    // not init
+    solver_->assert_formula(solver_->make_term(Not, init_label_));
+
+    // not Bk
+    solver_->assert_formula(
+            solver_->make_term(Not, get_back_frame_term(false)));
+
+    // TermVec input_lits = get_input_values();
+    // Term input_formula = make_and(input_lits);
+
+    // solver_->assert_formula(input_formula);
+
+    // trans
+    // solver_->assert_formula(trans_label_);
+    solver_->assert_formula(ts_.trans());
+
+    // Bk-1'
+    solver_->assert_formula(ts_.next(get_back_frame_term(false)));
+
+    Result r = check_sat();
+    if (r.is_sat()) {
+        IC3Formula s = get_model_ic3formula();
+
+        TermVec input_lits = get_input_values();
+        Term input_formula = make_and(input_lits);
+
+
+        pop_solver_context();
+        
+        // for (const auto & ss : s.children){
+        //     std::cout << "ss: " << ss << std::endl;
+        // } 
+        // std::cout << "........after generating.........\n";
+        IC3Formula out = print_generate_input(s, input_formula);  
+        // IC3Formula out = print_generate(s, i);
+        // IC3Formula out = generate_from_qbf(s, i);
+        // IC3Formula out = s;
+
+        push_solver_context();
+
+        solver_->assert_formula(init_label_);
+        solver_->assert_formula(ts_.trans());
+        solver_->assert_formula(ts_.next(out.term));       
+
+        Result rr = check_sat();
+        if (rr.is_sat()) {
+            pop_solver_context();
+            return false;
+        }
+        pop_solver_context();
+
+        // std::cout << "B" << i << ": " << get_frame_term(i) << std::endl;
+        
+        extend_frame_back(out);
+        
+    }
+    return true;
+
+
+}
+
+IC3Formula IC3BackDual::print_generate_input(const IC3Formula & s, smt::Term input)
+{
+    // IC3Formula out;
+    std::map<size_t, Term> smap;
+    string filename = "QBF.smt2";
+    ofstream openfile(filename);
+    openfile << "(set-option :produce-unsat-cores true)\n";
+    openfile << "(set-logic ALL)\n";
+
+    for (const auto & in : ts_.inputvars()) {
+        openfile << "(declare-fun " << in << " () " << in->get_sort() << ")\n";
+    }
+
+    for (const auto & sv : ts_.statevars()) {
+        openfile << "(declare-fun " << sv << " () " << sv->get_sort() << ")\n";
+    }
+
+    for (const auto & sv : ts_.statevars()) {
+        openfile << "(declare-fun " << ts_.next(sv) << " () " << sv->get_sort() << ")\n";
+    }
+
+    for (const auto & ss : s.children) {
+        openfile << "(assert (! " << ss << " :named" <<  " ss_" << ss->get_id() << "))\n";
+        smap[ss->get_id()] = ss;
+    }
+    
+    openfile << "(assert " << input << ")\n";
+    Term notT = solver_->make_term(Not, ts_.trans());
+    Term notB = solver_->make_term(Not, ts_.next(get_back_frame_term(false)));
+    Term notTnotB = solver_->make_term(Or, notT, notB);
+    // Term TB = solver_->make_term(And, trans_label_, ts_.next(get_frame_term(k-1)));
+
+    // solver_->dump_smt2("QBF.smt2");
+
+    openfile << "(assert (forall (";
+
+    // TermVec para;
+    
+    for (const auto & sv : ts_.statevars()) {
+        Term nsv = ts_.next(sv);
+
+        // Term t = solver_->make_param(nsv->to_string(), nsv->get_sort());
+
+        // para.push_back(t);
+        // std::cout << t << std::endl;
+
+        openfile << "(" << nsv->to_string() << " " << nsv->get_sort() << ")";
+    }
+    openfile << ")\n";
+    openfile << notTnotB << "))\n";
+
+    // para.push_back(notTnotB);
+    // solver_->assert_formula(solver_->make_term(Forall, para));
+    // solver_->assert_formula(s.term);
+    
+    // for (size_t i = 0; i < para.size(); ++i)
+    // {
+    //     std::cout << "para[" << i << "] " << para[i] << std::endl;
+    // }
+
+    // notTnotB = solver_->make_term(Forall, para);
+
+    // std::cout << notTnotB << std::endl;
+    // solver_->assert_formula(notTnotB);
+    // openfile << solver_->make_term(Not, ts_.trans()) << '\n';
+    // openfile << solver_->make_term(Not, ts_.next(get_frame_term(k - 1))) << '\n';
+
+    // openfile.close();
+    // Result r = check_sat();
+    // std::cout << "r: " << r << std::endl;
+
+    openfile << "(check-sat)\n";
+    openfile << "(get-unsat-core)\n";
+    openfile.close();
+
+    char buf[1024];
+    string result, term;
+    /// std::vector<size_t> coreid;
+    TermVec core;
+    string command = "cvc5 " + filename;
+    FILE * p = popen(command.c_str(), "r");
+    while(fgets(buf, 1024, p) != NULL) {
+        // std::cout << "buf: " << buf << std::endl;
+        // if (buf[1] == 's') {
+        //     result = buf;
+        //     break;
+        // }
+        if (buf[1] == 's') {
+            result = buf;
+            core.push_back(smap[mid_num(result)]);
+        }
+        
+    }
+
+    pclose(p);
+
+    // istringstream record(result);
+    // while (record >> term) {
+
+    //     core.push_back(smap[mid_num(term)]);
+    // }
+    // for (int i = 0; i < core.size(); ++i) {
+    //     std::cout << core[i] << "\n";
+    // }
+    // IC3Formula out = reduce_generate(s, k, input, core);
+    IC3Formula out = ic3formula_conjunction(core);
+
+    // for (const auto & ss : s.children){
+    //     if (ss->get_id() == size_t())
+    // }
+
+    return out;
+}
 
 
 }
