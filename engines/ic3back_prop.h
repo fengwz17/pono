@@ -85,11 +85,14 @@ class IC3BackProp : public IC3
     // \bar{s} /\ i /\ \forall X'(\neg T \/ \neg Bk-1')
     IC3Formula print_generate_input(const IC3Formula & s, smt::Term input, size_t k);
 
-    IC3Formula generate_input(const IC3Formula & s, smt::Term input, size_t k);
+    IC3Formula generate_from_qbf(const IC3Formula & s, size_t k);
 
     // s |= \exists i, X'(T /\ Bk-1')
     // \bar{s} /\ \forall i, X'(\neg T \/ \neg Bk-1')
     IC3Formula print_generate(const IC3Formula & s, size_t k);
+
+    IC3Formula reduce_generate(const IC3Formula & s, size_t k, smt::Term input, smt::TermVec core);
+   
 
     // void reset_solver();
 

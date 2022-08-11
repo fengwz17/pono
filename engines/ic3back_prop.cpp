@@ -60,11 +60,6 @@ void IC3BackProp::initialize()
 
     vector<IC3Formula> & B0 = frames_.at(0);
 
-    for (size_t j = 0; j < B0.size(); ++j) 
-    {
-        act_map_[B0[j].term] = true;
-    }
-
     solver_->assert_formula(
         solver_->make_term(Implies, frame_labels_.at(0), bad_));
     // push_frame();
@@ -182,8 +177,10 @@ ProverResult IC3BackProp::back_step(int & i)
         //     std::cout << "ss: " << ss << std::endl;
         // } 
         // std::cout << "........after generating.........\n";
-        IC3Formula out = print_generate_input(s, input_formula, i);  
-        // IC3Formula out = print_generate(s, i);
+        // IC3Formula out = print_generate_input(s, input_formula, i);  
+        IC3Formula out = print_generate(s, i);
+        // IC3Formula out = generate_from_qbf(s, i);
+        // IC3Formula out = s;
 
         push_solver_context();
 
@@ -443,7 +440,8 @@ IC3Formula IC3BackProp::print_generate_input(const IC3Formula & s, smt::Term inp
     // for (int i = 0; i < core.size(); ++i) {
     //     std::cout << core[i] << "\n";
     // }
-    IC3Formula out = ic3formula_conjunction(core);
+    IC3Formula out = reduce_generate(s, k, input, core);
+    // IC3Formula out = ic3formula_conjunction(core);
 
     // for (const auto & ss : s.children){
     //     if (ss->get_id() == size_t())
@@ -452,9 +450,42 @@ IC3Formula IC3BackProp::print_generate_input(const IC3Formula & s, smt::Term inp
     return out;
 }
 
-IC3Formula IC3BackProp::generate_input(const IC3Formula & s, smt::Term input, size_t k)
+// get reduced unsat core 
+IC3Formula IC3BackProp::generate_from_qbf(const IC3Formula & s, size_t k)
 {
+    push_solver_context();
+    Term notT = solver_->make_term(Not, ts_.trans());
+    Term notB = solver_->make_term(Not, ts_.next(get_frame_term(k -1)));
+    Term notTnotB = solver_->make_term(Or, notT, notB);
     
+    TermVec param_vec;
+    param_vec.clear();
+    
+    for (const auto & in : ts_.inputvars()) {
+        Term t = solver_->make_param(in->to_string(), in->get_sort());
+        param_vec.push_back(t);
+    }
+    
+    // for (const auto & sv : ts_.statevars()) {
+    //     Term t = solver_->make_param(sv->to_string(), sv->get_sort());
+    //     param_vec.push_back(t);
+    // }
+    
+    for (const auto & sv : ts_.statevars()) {
+        Term nsv = ts_.next(sv);
+        Term t = solver_->make_param(nsv->to_string(), nsv->get_sort());
+        param_vec.push_back(t);
+    }
+    param_vec.push_back(notTnotB);
+    solver_->assert_formula(s.term);
+    Term q = solver_->make_term(Forall, param_vec);
+    std::cout << "s: " << s.term << std::endl;
+    std::cout << "q: " << q << std::endl;
+    solver_->assert_formula(q);
+    Result r = check_sat();
+    std::cout << "r: " << r << std::endl;
+    pop_solver_context();
+    return s;
 }
 
 IC3Formula IC3BackProp::print_generate(const IC3Formula & s, size_t k)
@@ -492,15 +523,15 @@ IC3Formula IC3BackProp::print_generate(const IC3Formula & s, size_t k)
 
     openfile << "(assert (forall (";
 
-    // TermVec para;
+    TermVec para;
     
     for (const auto & sv : ts_.statevars()) {
         Term nsv = ts_.next(sv);
 
-        // Term t = solver_->make_param(nsv->to_string(), nsv->get_sort());
+        Term t = solver_->make_param(nsv->to_string(), nsv->get_sort());
 
-        // para.push_back(t);
-        // std::cout << t << std::endl;
+        para.push_back(t);
+        std::cout << t << std::endl;
 
         openfile << "(" << nsv->to_string() << " " << nsv->get_sort() << ")";
     }
@@ -512,8 +543,9 @@ IC3Formula IC3BackProp::print_generate(const IC3Formula & s, size_t k)
     openfile << ")\n";
     openfile << notTnotB << "))\n";
 
-    // para.push_back(notTnotB);
-    // solver_->assert_formula(solver_->make_term(Forall, para));
+    para.push_back(notTnotB);
+    std::cout << "notT: " << notTnotB << std::endl;
+    solver_->assert_formula(solver_->make_term(Forall, para));
     // solver_->assert_formula(s.term);
     
     // for (size_t i = 0; i < para.size(); ++i)
@@ -565,6 +597,8 @@ IC3Formula IC3BackProp::print_generate(const IC3Formula & s, size_t k)
     // for (int i = 0; i < core.size(); ++i) {
     //     std::cout << core[i] << "\n";
     // }
+
+    // IC3Formula out = reduce_generate(s, k, core);
     IC3Formula out = ic3formula_conjunction(core);
 
     // for (const auto & ss : s.children){
@@ -574,6 +608,115 @@ IC3Formula IC3BackProp::print_generate(const IC3Formula & s, size_t k)
     return out;
 }
 
+IC3Formula IC3BackProp::reduce_generate(const IC3Formula & s, size_t k, smt::Term input, TermVec core) {
+    // IC3Formula out;
+    int iter = 1;
+    std::map<size_t, Term> smap;
+    //  for (int i = 0; i < core.size(); ++i) {
+    //     std::cout << core[i] << "\n";
+    // }
+    string filename = "QBF_" + std::to_string(k) + ".smt2";
+    while (iter > 0)
+    {
+        smap.clear(); 
+   
+        ofstream openfile(filename);
+        openfile << "(set-option :produce-unsat-cores true)\n";
+        openfile << "(set-logic ALL)\n";
+
+        for (const auto & in : ts_.inputvars()) {
+            openfile << "(declare-fun " << in << " () " << in->get_sort() << ")\n";
+        }
+
+        for (const auto & sv : ts_.statevars()) {
+            openfile << "(declare-fun " << sv << " () " << sv->get_sort() << ")\n";
+        }
+
+        for (const auto & sv : ts_.statevars()) {
+            openfile << "(declare-fun " << ts_.next(sv) << " () " << sv->get_sort() << ")\n";
+        }
+
+        for (int i = 0; i < core.size(); ++i) {
+            openfile << "(assert (! " << core[i] << " :named" <<  " ss_" << core[i]->get_id() << "))\n";
+            smap[core[i]->get_id()] = core[i];
+        }
+        openfile << "(assert " << input << ")\n";
+        Term notT = solver_->make_term(Not, ts_.trans());
+        Term notB = solver_->make_term(Not, ts_.next(get_frame_term(k -1)));
+        Term notTnotB = solver_->make_term(Or, notT, notB);
+        // Term TB = solver_->make_term(And, trans_label_, ts_.next(get_frame_term(k-1)));
+
+        // solver_->dump_smt2("QBF.smt2");
+
+        openfile << "(assert (forall (";
+
+        // TermVec para;
+        
+        for (const auto & sv : ts_.statevars()) {
+            Term nsv = ts_.next(sv);
+
+            // Term t = solver_->make_param(nsv->to_string(), nsv->get_sort());
+
+            // para.push_back(t);
+            // std::cout << t << std::endl;
+
+            openfile << "(" << nsv->to_string() << " " << nsv->get_sort() << ")";
+        }
+
+        // for (const auto & iv : ts_.inputvars()) {
+        //     openfile << "(" << iv->to_string() << " " << iv->get_sort() << ")";
+        // }
+
+        openfile << ")\n";
+        openfile << notTnotB << "))\n";
+
+        openfile << "(check-sat)\n";
+        openfile << "(get-unsat-core)\n";
+        openfile.close();
+
+        char buf[1024];
+        string result, term;
+        /// std::vector<size_t> coreid;
+
+    // TermVec core;
+        core.clear();
+        string command = "cvc5 " + filename;
+        FILE * p = popen(command.c_str(), "r");
+        while(fgets(buf, 1024, p) != NULL) {
+            // std::cout << "buf: " << buf << std::endl;
+            // if (buf[1] == 's') {
+            //     result = buf;
+            //     break;
+            // }
+            if (buf[1] == 's') {
+                result = buf;
+                core.push_back(smap[mid_num(result)]);
+            }
+            
+        }
+
+        pclose(p);
+        iter--;
+
+    }
+    
+    
+    // istringstream record(result);
+    // while (record >> term) {
+
+    //     core.push_back(smap[mid_num(term)]);
+    // }
+    // for (int i = 0; i < core.size(); ++i) {
+    //     std::cout << core[i] << "\n";
+    // }
+    IC3Formula out = ic3formula_conjunction(core);
+
+    // for (const auto & ss : s.children){
+    //     if (ss->get_id() == size_t())
+    // }
+
+    return out;
+}
 
 void IC3BackProp::extend_frame(size_t k, const IC3Formula & s) {
     bool flag = false;
@@ -754,6 +897,122 @@ IC3Formula IC3BackProp::print_formula(const IC3Formula & s, smt::Term input, siz
 
 void IC3BackProp::generate_quantified_formula(const IC3Formula & s, size_t k) {
     // push_solver_context();
+    // IC3Formula out;
+    std::map<size_t, Term> smap;
+    string filename = "QBF_" + std::to_string(k) + ".smt2";
+    ofstream openfile(filename);
+    openfile << "(set-option :produce-unsat-cores true)\n";
+    openfile << "(set-logic ALL)\n";
+
+    for (const auto & in : ts_.inputvars()) {
+        openfile << "(declare-fun " << in << " () " << in->get_sort() << ")\n";
+    }
+
+    for (const auto & sv : ts_.statevars()) {
+        openfile << "(declare-fun " << sv << " () " << sv->get_sort() << ")\n";
+    }
+
+    for (const auto & sv : ts_.statevars()) {
+        openfile << "(declare-fun " << ts_.next(sv) << " () " << sv->get_sort() << ")\n";
+    }
+
+    for (const auto & ss : s.children) {
+        openfile << "(assert (! " << ss << " :named" <<  " ss_" << ss->get_id() << "))\n";
+        smap[ss->get_id()] = ss;
+    }
+    
+    Term notT = solver_->make_term(Not, ts_.trans());
+    Term notB = solver_->make_term(Not, ts_.next(get_frame_term(k -1)));
+    Term notTnotB = solver_->make_term(Or, notT, notB);
+    // Term TB = solver_->make_term(And, trans_label_, ts_.next(get_frame_term(k-1)));
+
+    // solver_->dump_smt2("QBF.smt2");
+
+    openfile << "(assert (forall (";
+
+    TermVec para;
+    
+    for (const auto & sv : ts_.statevars()) {
+        Term nsv = ts_.next(sv);
+
+        Term t = solver_->make_param(nsv->to_string(), nsv->get_sort());
+
+        para.push_back(t);
+        std::cout << t << std::endl;
+
+        openfile << "(" << nsv->to_string() << " " << nsv->get_sort() << ")";
+    }
+
+    for (const auto & iv : ts_.inputvars()) {
+        openfile << "(" << iv->to_string() << " " << iv->get_sort() << ")";
+    }
+
+    openfile << ")\n";
+    openfile << notTnotB << "))\n";
+
+    para.push_back(notTnotB);
+    std::cout << "notT: " << notTnotB << std::endl;
+    solver_->assert_formula(solver_->make_term(Forall, para));
+    // solver_->assert_formula(s.term);
+    
+    // for (size_t i = 0; i < para.size(); ++i)
+    // {
+    //     std::cout << "para[" << i << "] " << para[i] << std::endl;
+    // }
+
+    // notTnotB = solver_->make_term(Forall, para);
+
+    // std::cout << notTnotB << std::endl;
+    // solver_->assert_formula(notTnotB);
+    // openfile << solver_->make_term(Not, ts_.trans()) << '\n';
+    // openfile << solver_->make_term(Not, ts_.next(get_frame_term(k - 1))) << '\n';
+
+    // openfile.close();
+    // Result r = check_sat();
+    // std::cout << "r: " << r << std::endl;
+
+    openfile << "(check-sat)\n";
+    openfile << "(get-unsat-core)\n";
+    openfile.close();
+
+    char buf[1024];
+    string result, term;
+    /// std::vector<size_t> coreid;
+    TermVec core;
+    string command = "cvc5 " + filename;
+    FILE * p = popen(command.c_str(), "r");
+    while(fgets(buf, 1024, p) != NULL) {
+        // std::cout << "buf: " << buf << std::endl;
+        // if (buf[1] == 's') {
+        //     result = buf;
+        //     break;
+        // }
+        if (buf[1] == 's') {
+            result = buf;
+            core.push_back(smap[mid_num(result)]);
+        }
+        
+    }
+
+    pclose(p);
+
+    // istringstream record(result);
+    // while (record >> term) {
+
+    //     core.push_back(smap[mid_num(term)]);
+    // }
+    // for (int i = 0; i < core.size(); ++i) {
+    //     std::cout << core[i] << "\n";
+    // }
+
+    // IC3Formula out = reduce_generate(s, k, core);
+    IC3Formula out = ic3formula_conjunction(core);
+
+    // for (const auto & ss : s.children){
+    //     if (ss->get_id() == size_t())
+    // }
+
+    return out;
 
 }
 
