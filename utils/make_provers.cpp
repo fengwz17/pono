@@ -27,6 +27,7 @@
 #include "engines/interpolantmc.h"
 #include "engines/kinduction.h"
 #include "engines/mbic3.h"
+#include "engines/muldiv_verify.h"
 #include "engines/syguspdr.h"
 #ifdef WITH_MSAT_IC3IA
 #include "engines/msat_ic3ia.h"
@@ -41,13 +42,11 @@ namespace pono {
 
 vector<Engine> all_engines()
 {
-  return { BMC, BMC_SP, KIND, MBIC3,
-           #ifdef WITH_MSAT
-           INTERP,
-           IC3IA_ENGINE,
-           #endif
-           IC3SA_ENGINE
-  };
+  return { BMC,         BMC_SP,       KIND, MBIC3,
+#ifdef WITH_MSAT
+           INTERP,      IC3IA_ENGINE,
+#endif
+           IC3SA_ENGINE };
 }
 
 shared_ptr<Prover> make_prover(Engine e,
@@ -88,6 +87,8 @@ shared_ptr<Prover> make_prover(Engine e,
     return make_shared<IC3SA>(p, ts, slv, opts);
   } else if (e == SYGUS_PDR) {
     return make_shared<SygusPdr>(p, ts, slv, opts);
+  } else if (e == MULDIV) {
+    return make_shared<MulDivVerify>(p, ts, slv, opts);
   } else {
     throw PonoException("Unhandled engine");
   }
@@ -124,8 +125,7 @@ shared_ptr<Prover> make_ceg_proph_prover(Engine e,
 #endif
   else if (e == IC3SA_ENGINE) {
     return std::make_shared<CegProphecyArrays<IC3SA>>(p, ts, slv, opts);
-  }
-  else {
+  } else {
     throw PonoException("Unhandled engine");
   }
 }
@@ -154,14 +154,14 @@ shared_ptr<Prover> make_cegar_bv_arith_prover(Engine e,
     if (opts.ceg_prophecy_arrays_) {
       // TODO: refactor
       shared_ptr<CegarOpsUf<CegProphecyArrays<IC3IA>>> prover =
-        make_shared<CegarOpsUf<CegProphecyArrays<IC3IA>>>(p, ts, slv, opts);
+          make_shared<CegarOpsUf<CegProphecyArrays<IC3IA>>>(p, ts, slv, opts);
       prover->set_ops_to_abstract(
           { BVMul, BVUdiv, BVSdiv, BVUrem, BVSrem, BVSmod });
       prover->set_min_bitwidth(opts.ceg_bv_arith_min_bw_);
       return prover;
     } else {
       shared_ptr<CegarOpsUf<IC3IA>> prover =
-        make_shared<CegarOpsUf<IC3IA>>(p, ts, slv, opts);
+          make_shared<CegarOpsUf<IC3IA>>(p, ts, slv, opts);
       prover->set_ops_to_abstract(
           { BVMul, BVUdiv, BVSdiv, BVUrem, BVSrem, BVSmod });
       prover->set_min_bitwidth(opts.ceg_bv_arith_min_bw_);

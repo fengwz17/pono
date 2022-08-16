@@ -15,9 +15,11 @@
  **/
 
 #include "options/options.h"
+
 #include <iostream>
 #include <string>
 #include <vector>
+
 #include "optionparser.h"
 #include "utils/exceptions.h"
 
@@ -122,7 +124,7 @@ const option::Descriptor usage[] = {
     "engine",
     Arg::NonEmpty,
     "  --engine, -e <engine> \tSelect engine from [bmc, bmc-sp, ind, "
-    "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr]." },
+    "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr, muldiv]." },
   { BOUND,
     0,
     "k",
@@ -412,7 +414,7 @@ const option::Descriptor usage[] = {
     Arg::None,
     "  --ic3sa-interp \tuse interpolants to find more terms during refinement "
     "(default: off)" },
-    { PRINT_WALL_TIME,
+  { PRINT_WALL_TIME,
     0,
     "",
     "print-wall-time",
@@ -560,8 +562,12 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case CEG_BV_ARITH: ceg_bv_arith_ = true; break;
         case CEG_BV_ARITH_MIN_BW: ceg_bv_arith_min_bw_ = atoi(opt.arg); break;
         case PROMOTE_INPUTVARS: promote_inputvars_ = true; break;
-        case SYGUS_OP_LVL: sygus_use_operator_abstraction_ = atoi(opt.arg); break;
-        case SYGUS_TERM_MODE: sygus_term_mode_ = SyGuSTermMode(atoi(opt.arg)); break;
+        case SYGUS_OP_LVL:
+          sygus_use_operator_abstraction_ = atoi(opt.arg);
+          break;
+        case SYGUS_TERM_MODE:
+          sygus_term_mode_ = SyGuSTermMode(atoi(opt.arg));
+          break;
         case IC3SA_INITIAL_TERMS_LVL: {
           ic3sa_initial_terms_lvl_ = atoi(opt.arg);
           if (ic3sa_initial_terms_lvl_ > 4) {
@@ -645,8 +651,7 @@ string to_string(Engine e)
       res = "mbic3";
       break;
     }
-    case IC3_BOOL:
-    {
+    case IC3_BOOL: {
       res = "ic3bool";
       break;
     }
@@ -669,6 +674,9 @@ string to_string(Engine e)
     case SYGUS_PDR: {
       res = "sygus-pdr";
       break;
+    }
+    case MULDIV: {
+      res = "muldiv";
     }
     default: {
       throw PonoException("Unhandled engine: " + std::to_string(e));

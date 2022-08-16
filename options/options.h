@@ -39,7 +39,8 @@ enum Engine
   IC3IA_ENGINE,
   MSAT_IC3IA,
   IC3SA_ENGINE,
-  SYGUS_PDR
+  SYGUS_PDR,
+  MULDIV
   // NOTE: if adding an IC3 variant,
   // make sure to update ic3_variants_set in options/options.cpp
   // used for setting solver options appropriately
@@ -60,15 +61,17 @@ const std::unordered_map<std::string, Engine> str2engine(
       { "ind", KIND },
       { "interp", INTERP },
       { "mbic3", MBIC3 },
-      { "ic3bool", IC3_BOOL},
+      { "ic3bool", IC3_BOOL },
       { "ic3bits", IC3_BITS },
       { "ic3ia", IC3IA_ENGINE },
       { "msat-ic3ia", MSAT_IC3IA },
       { "ic3sa", IC3SA_ENGINE },
-      { "sygus-pdr", SYGUS_PDR } });
+      { "sygus-pdr", SYGUS_PDR },
+      { "muldiv", MULDIV } });
 
 // SyGuS mode option
-enum SyGuSTermMode{
+enum SyGuSTermMode
+{
   FROM_DESIGN_LEARN_EXT = 0,
   VAR_C_EXT = 1,
   SPLIT_FROM_DESIGN = 2,
@@ -173,18 +176,18 @@ class PonoOptions
   bool show_invar_;   ///< display invariant when running from command line
   bool check_invar_;  ///< check invariants (if available) when run through CLI
   // ic3 options
-  bool ic3_pregen_;  ///< generalize counterexamples in IC3
-  bool ic3_indgen_;  ///< inductive generalization in IC3
-  unsigned int ic3_gen_max_iter_; ///< max iterations in ic3 generalization. 0
-                                  ///means unbounded
+  bool ic3_pregen_;                ///< generalize counterexamples in IC3
+  bool ic3_indgen_;                ///< inductive generalization in IC3
+  unsigned int ic3_gen_max_iter_;  ///< max iterations in ic3 generalization. 0
+                                   /// means unbounded
   unsigned int mbic3_indgen_mode;  ///< inductive generalization mode [0,2]
-  bool ic3_functional_preimage_; ///< functional preimage in IC3
+  bool ic3_functional_preimage_;   ///< functional preimage in IC3
   bool ic3_unsatcore_gen_;  ///< generalize a cube during relative inductiveness
                             ///< check with unsatcore
   bool ic3ia_reduce_preds_;  ///< reduce predicates with unsatcore in IC3IA
   bool ic3ia_track_important_vars_;  ///< prioritize predicates with marked
                                      ///< important variables
-  bool ic3sa_func_refine_;  ///< try functional unrolling in refinement
+  bool ic3sa_func_refine_;           ///< try functional unrolling in refinement
   std::string profiling_log_filename_;
   bool pseudo_init_prop_;  ///< replace init and prop with boolean state vars
   bool assume_prop_;       ///< assume property in pre-state
@@ -195,22 +198,27 @@ class PonoOptions
   bool cegp_consec_axiom_red_;     ///< reduce consecutive axioms before lifting
   bool cegp_nonconsec_axiom_red_;  ///< reduce nonconsecutive axioms before
                                    ///< prophecizing
-  bool cegp_force_restart_;  ///< force underlying engine to restart after
-                             ///< refinement
+  bool cegp_force_restart_;        ///< force underlying engine to restart after
+                                   ///< refinement
   bool cegp_abs_vals_;  ///< abstract values on top of ceg-prophecy-arrays
-  size_t cegp_abs_vals_cutoff_;  ///< cutoff to abstract a value
+  size_t cegp_abs_vals_cutoff_;   ///< cutoff to abstract a value
   bool cegp_strong_abstraction_;  ///< use strong abstraction (no equality UFs)
-  bool ceg_bv_arith_;            ///< CEGAR -- Abstract BV arithmetic operators
-  size_t ceg_bv_arith_min_bw_;   ///< Only abstract operators having bitwidth
-                                 ///< strictly greater than this number
+  bool ceg_bv_arith_;             ///< CEGAR -- Abstract BV arithmetic operators
+  size_t ceg_bv_arith_min_bw_;    ///< Only abstract operators having bitwidth
+                                  ///< strictly greater than this number
   bool promote_inputvars_;
   // sygus-pdr options
-  SyGuSTermMode sygus_term_mode_; ///< SyGuS term production mode
-  unsigned sygus_term_extract_depth_; ///< SyGuS Term extraction depth for existing terms
-  unsigned sygus_initial_term_width_; ///< SyGuS Control and data width seperator
-  unsigned sygus_initial_term_inc_; ///< SyGuS Control and data width seperator increment bound
-  unsigned sygus_accumulated_term_bound_; ///< SyGuS Term accumulation bound count
-  unsigned sygus_use_operator_abstraction_; ///< SyGuS abstract and avoid use some operators
+  SyGuSTermMode sygus_term_mode_;      ///< SyGuS term production mode
+  unsigned sygus_term_extract_depth_;  ///< SyGuS Term extraction depth for
+                                       ///< existing terms
+  unsigned
+      sygus_initial_term_width_;     ///< SyGuS Control and data width seperator
+  unsigned sygus_initial_term_inc_;  ///< SyGuS Control and data width seperator
+                                     ///< increment bound
+  unsigned
+      sygus_accumulated_term_bound_;  ///< SyGuS Term accumulation bound count
+  unsigned sygus_use_operator_abstraction_;  ///< SyGuS abstract and avoid use
+                                             ///< some operators
   size_t ic3sa_initial_terms_lvl_;  ///< configures where to find terms for
                                     ///< initial abstraction
   bool ic3sa_interp_;
