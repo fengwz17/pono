@@ -17,6 +17,7 @@
 #pragma once
 
 #include "engines/prover.h"
+#include "smt-switch/utils.h"
 
 namespace pono {
 
@@ -35,6 +36,8 @@ class MulDivVerify : public Prover
   void initialize() override;
 
   ProverResult check_until(int k) override;
+  void DFS(smt::Term root);
+  smt::TermVec getChildren(smt::Term t);
 
  protected:
   void step(int i);

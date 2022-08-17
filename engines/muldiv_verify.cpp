@@ -74,6 +74,9 @@ void MulDivVerify::step(int i)
     // solver_->assert_formula(unroller_.at_time(ts_.trans(), i - 1));
     std::cout << unroller_.at_time(ts_.trans(), i - 1) << std::endl;
     std::cout << std::endl;
+
+    smt::Term u = unroller_.at_time(ts_.trans(), i - 1);
+    DFS(u);
   }
 
   // solver_->push();
@@ -89,6 +92,28 @@ void MulDivVerify::step(int i)
   ++reached_k_;
 
   // return res;
+}
+
+smt::TermVec MulDivVerify::getChildren(smt::Term t)
+{
+  smt::TermVec children;
+  for (auto child : t) {
+    children.push_back(child);
+  }
+  return children;
+}
+
+void MulDivVerify::DFS(smt::Term root)
+{
+  smt::TermVec children = getChildren(root);
+  logger.log(1, "root.op: {}", root->get_op());
+  for (size_t i = 0; i < children.size(); i++) {
+    logger.log(1, "child_{} : {}", i, children[i]);
+  }
+  std::cout << std::endl;
+  for (auto child : children) {
+    DFS(child);
+  }
 }
 
 }  // namespace pono
