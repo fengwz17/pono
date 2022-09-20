@@ -74,7 +74,8 @@ enum optionIndex
   SYGUS_TERM_MODE,
   IC3SA_INITIAL_TERMS_LVL,
   IC3SA_INTERP,
-  PRINT_WALL_TIME
+  PRINT_WALL_TIME,
+  PRINT_SMT_FORMULA
 };
 
 struct Arg : public option::Arg
@@ -420,6 +421,12 @@ const option::Descriptor usage[] = {
     "print-wall-time",
     Arg::None,
     "  --print-wall-time \tPrint wall clock time of entire execution" },
+  { PRINT_SMT_FORMULA,
+    0,
+    "",
+    "print-smt-formula",
+    Arg::None,
+    "  --print-smt-formula \tPrint smt formula for btor file" },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -578,6 +585,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         }
         case IC3SA_INTERP: ic3sa_interp_ = true; break;
         case PRINT_WALL_TIME: print_wall_time_ = true; break;
+        case PRINT_SMT_FORMULA: print_smt_formula = true; break;
         case UNKNOWN_OPTION:
           // not possible because Arg::Unknown returns ARG_ILLEGAL
           // which aborts the parse with an error

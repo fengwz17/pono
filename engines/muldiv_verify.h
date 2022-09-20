@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <map>
+#include <set>
+
 #include "engines/prover.h"
 #include "smt-switch/utils.h"
 
@@ -36,8 +39,25 @@ class MulDivVerify : public Prover
   void initialize() override;
 
   ProverResult check_until(int k) override;
-  void DFS(smt::Term root);
+  void translate(smt::Term root);
   smt::TermVec getChildren(smt::Term t);
+  bool LeafNode(smt::Term node);
+  void translatePoly(smt::Term node);
+  void setIndex(smt::Term nodeTerm);
+  std::string getNodeName(smt::Term node);
+  void printSMTFormula(int k, int flag);
+  void singularSolver();
+  void recordNodeName(smt::Term node);
+  void record(int i);
+  void dumpPreDefine();
+  void dumpPostDefine();
+
+  std::map<std::string, int> opCounter;
+  std::map<smt::Term, std::string> termIndex;
+  std::set<std::string> varName;
+  std::vector<smt::Term> nodeName;
+
+  int poly_counter = 0;
 
  protected:
   void step(int i);
